@@ -1,0 +1,13 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: A simple EC2 instance from yaml file
+Resources:
+  MyEC2Instances:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0b2ca94b5b49e0132
+      InstanceType: t2.micro
+      AvailabilityZone: us-east-1a
+      KeyName: francoise-key-pair
+      SecurityGroupIds: sg-0a9f7c4c3dd246e69
+      SubnetId: subnet-0a2191160f58bfa5a
+    
