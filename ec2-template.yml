@@ -11,4 +11,7 @@ Resources:
       SecurityGroupIds: 
         - sg-0a9f7c4c3dd246e69
       SubnetId: subnet-0a2191160f58bfa5a
+      Tags: 
+        - Key: Name
+          Value: francoise-ec2-from-cloudformation
     

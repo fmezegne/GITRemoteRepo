@@ -1,0 +1,33 @@
+Parameters:
+  LatestAmiId: # More Dynamic than traditional mapping
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  InstanceTypeParameter:
+    Description: Please enter an instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - m1.large
+  KeyNameParameter:
+    Description: Please select a key pair value
+    Type: AWS::EC2::KeyPair::KeyName
+
+Resources:
+  MyEC2Instance: # logical name of the resource
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId # 'ami-0233c2d874b811deb'
+      KeyName: !Ref KeyNameParameter # 'wordpress-ohio'
+      InstanceType: !Ref InstanceTypeParameter # 't2.micro'
+      SubnetId: !ImportValue networking-base-stack-SubnetID # 'subnet-05e02dea151becd2c'
+      SecurityGroupIds: #list of security group IDs
+        - !ImportValue networking-base-stack-SecurityGroupID
+  # CREATE AN ELASTIC IP ADDRESS RESOURCE AND ATTACH IT TO YOUR EC2
+
+Outputs:
+  EC2InstanceOutput:
+    Description: Display the Private IP address of the instance.
+    Value: !GetAtt MyEC2Instance.PrivateIp
+  # RETURN A PUBLIC IP ATTRIBUTE
