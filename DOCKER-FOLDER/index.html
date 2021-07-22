@@ -1,0 +1,6 @@
+#!/bin/bash 
+yum update -y 
+yum install -y httpd 
+systemctl start httpd 
+systemctl enable httpd
+echo "WELCOME TO FRANCOISE WEBSERVER. THIS APPLICATION RUNNING ON CONTAINER USING DOCKER." >/var/www/html/index.html

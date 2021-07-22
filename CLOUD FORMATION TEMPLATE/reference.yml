@@ -1,0 +1,46 @@
+Parameters:
+  LatestAmiId: # More Dynamic than traditional mapping
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  InstanceType:
+    Description: WebServer EC2 instance type (has default, AllowedValues)
+    Type: String
+    Default: t2.micro
+    AllowedValues: #possible values LIST
+      - t1.micro
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t3.micro
+    ConstraintDescription: must be a valid EC2 instance type.
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances. Linked to AWS Parameter
+    Type: AWS::EC2::KeyPair::KeyName # Resource identifier
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+  MyEC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.micro
+      AvailabilityZone: us-east-1f
+      SubnetId: !ImportValue sample-network-cross-stack-SubnetID
+      SecurityGroupIds: 
+        - !ImportValue sample-network-cross-stack-SecurityGroupID
+  MyEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref MyEC2Instance
+
+Outputs:
+  MyPrivateIP:
+    Description: MyPrivateIP
+    Value:  !GetAtt MyEC2Instance.PrivateIp
+  DNSName: 
+    Description: DNSNameoftheEC2
+    Value: !GetAtt MyEC2Instance.PublicDnsName
+
+
+
+     
