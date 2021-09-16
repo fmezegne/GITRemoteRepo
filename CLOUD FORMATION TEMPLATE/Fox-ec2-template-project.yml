@@ -1,0 +1,107 @@
+Parameters:
+  LatestAmiId: # More Dynamic than traditional mapping
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  InstanceType:
+    Description: WebServer EC2 instance type (has default, AllowedValues)
+    Type: String
+    Default: t2.micro
+    AllowedValues: #possible values LIST
+      - t1.micro
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t3.micro
+    ConstraintDescription: must be a valid EC2 instance type.
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances. Linked to AWS Parameter
+    Type: AWS::EC2::KeyPair::KeyName # Resource identifier
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+Resources:
+  Mypub1EC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          SubnetId: !ImportValue network1-Pub1SubnetID
+          GroupSet: 
+            - !ImportValue sg-template-publicSecurityGroupID
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-Public-instance-1
+      
+  Mypub2EC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          SubnetId: !ImportValue network1-Pub2SubnetID
+          GroupSet: 
+            - !ImportValue sg-template-publicSecurityGroupID
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-Public-instance-2
+  
+  Mypriv1EC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      SubnetId: subnet-0f2104d8f09af83fe
+      SecurityGroupIds: 
+        - !ImportValue sg-template-privateSecurityGroupID
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-Private-instance-1
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash 
+          yum update -y 
+          yum install -y httpd 
+          systemctl start httpd 
+          systemctl enable httpd
+          echo "WELCOME TO AFRICAN FINANCIAL INTERNAL WEBSITE. THIS APPLICATION WAS LUNCHED USING CLOUDFORMATION." >/var/www/html/index.html
+      
+  Mypriv2EC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      SubnetId: subnet-01d441ef70faf1291
+      SecurityGroupIds: 
+        - !ImportValue sg-template-privateSecurityGroupID
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Private-instance-2
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash 
+          yum update -y 
+          yum install -y httpd 
+          systemctl start httpd 
+          systemctl enable httpd
+          echo "WELCOME TO AFRICAN FINANCIAL INTERNAL WEBSITE. THIS APPLICATION WAS LUNCHED USING CLOUDFORMATION." >/var/www/html/index.html
+
+Outputs:
+  InstanceId:
+    Description: Public IP of pub1 instance
+    Value: !GetAtt Mypub1EC2Instance.PublicIp
+  InstanceId1:
+    Description: Public IP of pub2 instance
+    Value: !GetAtt Mypub2EC2Instance.PublicIp
+  InstanceId2:
+    Description: Private IP of private1 instance
+    Value: !GetAtt Mypriv1EC2Instance.PrivateIp
+  InstanceId3:
+    Description: Private IP of private1 instance
+    Value: !GetAtt Mypriv2EC2Instance.PrivateIp 

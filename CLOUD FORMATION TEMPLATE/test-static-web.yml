@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Static website hosting with S3 and CloudFront"
+Parameters:
+  BucketName:
+    Type: String
+    Default: "africanfinancial"
+Resources:
+  # Create the bucket to contain the website HTML
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref BucketName
+      WebsiteConfiguration:
+        ErrorDocument: "error.html"
+        IndexDocument: "index.html"
+      AccessControl: PublicRead
+      VersioningConfiguration:
+        Status: Enabled
+  # Configure the bucket as a CloudFront Origin
+  ReadPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Statement:
+          - Action: "s3:GetObject"
+            Effect: Allow
+            Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
+            Principal: "*"
+            # In an ideal scenario the policy would only grant these rights to CloudFront,
+            # we do not do it from scratch as many projects start without having a domain name specified
+            # and we want to test the code as soon as possible.
+            # Principal: CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+  # Configure Access to CloudFroun
+  CloudFrontOriginAccessIdentity:
+    Type: "AWS::CloudFront::CloudFrontOriginAccessIdentity"
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Ref S3Bucket
+  # Configure CloudFront
+  CloudFrontDistribution:
+    Type: "AWS::CloudFront::Distribution"
+    Properties:
+      DistributionConfig:
+        CustomErrorResponses:
+          - ErrorCode: 403 # not found
+            ResponseCode: 404
+            ResponsePagePath: "/index.html"
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          Compress: true
+          DefaultTTL: 3600 # in seconds
+          ForwardedValues:
+            Cookies:
+              Forward: none
+            QueryString: false
+          MaxTTL: 86400 # in seconds
+          MinTTL: 60 # in seconds
+          TargetOriginId: s3origin
+          ViewerProtocolPolicy: "allow-all"
+        # This DefaultRootObject configuration is not enough.
+        DefaultRootObject: "/index.html"
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+          - DomainName: !GetAtt "S3Bucket.DomainName"
+            Id: s3origin
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}"
+        PriceClass: "PriceClass_All"
+  # Create an IAM user with Access Keys to enable automated deployment of the website to this bucket
+  PublishUser:
+    Type: "AWS::IAM::User"
+    Properties:
+      Policies:
+        - PolicyName: !Sub "publish-to-${S3Bucket}"
+          PolicyDocument:
+            Statement:
+              - Action: "s3:*"
+                Effect: Allow
+                Resource:
+                  - !Sub "arn:aws:s3:::${S3Bucket}"
+                  - !Sub "arn:aws:s3:::${S3Bucket}/*"
+  PublishCredentials:
+    Type: "AWS::IAM::AccessKey"
+    Properties:
+      UserName: !Ref PublishUser
+  #copy a index.html file from another s3 bucket
+  S3Object:
+    Type: "AWS::S3::Object"
+    Properties:
+      Target:
+        Bucket: !Ref S3Bucket
+        Key: index.html
+        ContentType: html/markdown
+      Body: !Sub |
+        # My text file
+        <html>
+          <head>
+              <title>CloudSpace Academy Sample Website</title>
+          </head>
+          <body style="text-align:center;font-family:Verdana;margin:1%;">
+              <h1 style="color:rgb(17, 230, 212)">Welcome to Our Website!</h1>
+              <hr>
+              <p>This is a simple, static website that we deploy using DOCKER HAH!!!.</p>
+              <h2>Website Version: 1.0</h2>
+              <h3> Welcome to automation with jenkins!!!</h3>
+          </body>
+        </html>
+  # CopiedObject:
+  #   Type: AWS::S3::Object
+  #   Properties:
+  #     Source:
+  #       Bucket:
+  #       - !Sub arn:aws:s3:::sohobucketsource
+  #       Key: index.html
+  #     Target:
+  #       Bucket: !Ref S3Bucket
+  #       Key: index.html
+  #       ACL: public-read
+Outputs:
+  Bucket:
+    Description: "africanfinancial"
+    Value: !Ref S3Bucket
+  BucketUrl:
+    Description: "africanfinancial"
+    Value: !GetAtt "S3Bucket.WebsiteURL"
+  AccessKeyId:
+    Description: "africanfinancial"
+    Value: !Ref PublishCredentials
+  AccessKeySecret:
+    Description: "africanfinancial"
+    Value: !GetAtt PublishCredentials.SecretAccessKey
+  DistributionId:
+    Description: "CloudFront Distribution ID"
+    Value: !Ref CloudFrontDistribution
+  Domain:
+    Description: "Cloudfront Domain"
+    Value: !GetAtt CloudFrontDistribution.DomainName

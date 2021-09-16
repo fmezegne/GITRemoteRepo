@@ -1,0 +1,92 @@
+Parameters:
+  LatestAmiId: # More Dynamic than traditional mapping
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  InstanceType:
+    Description: WebServer EC2 instance type (has default, AllowedValues)
+    Type: String
+    Default: t2.micro
+    AllowedValues: #possible values LIST
+      - t1.micro
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t3.micro
+    ConstraintDescription: must be a valid EC2 instance type.
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances. Linked to AWS Parameter
+    Type: AWS::EC2::KeyPair::KeyName # Resource identifier
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+Resources:
+  Mypub1EC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          SubnetId: !ImportValue Network-template-Pub1SubnetID
+          GroupSet: 
+            - !ImportValue Pub-server-sg-publicSecurityGroupID
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash 
+          yum update -y 
+          yum install -y httpd 
+          systemctl start httpd 
+          systemctl enable httpd
+          echo "WELCOME TO FRANCOISE WEBSERVER. THIS APPLICATION WAS LUNCHED USING CLOUDFORMATION." >/var/www/html/index.html
+  # Mypub2EC2Instance: 
+  #   Type: AWS::EC2::Instance
+  #   Properties: 
+  #     ImageId: !Ref LatestAmiId
+  #     InstanceType: t2.micro
+  #     KeyName: !Ref KeyName
+  #     NetworkInterfaces: 
+  #       - AssociatePublicIpAddress: "true"
+  #         DeviceIndex: "0"
+  #         SubnetId: !ImportValue Network-template-Pub2SubnetID
+  #         GroupSet: 
+  #           - !ImportValue Pub-server-sg-publicSecurityGroupID
+  #     UserData:
+  #       Fn::Base64: |
+  #         #!/bin/bash 
+  #         yum update -y 
+  #         yum install -y httpd 
+  #         systemctl start httpd 
+  #         systemctl enable httpd
+  #         echo "WELCOME TO FRANCOISE WEBSERVER. THIS APPLICATION WAS LUNCHED USING CLOUDFORMATION." >/var/www/html/index.html
+  Mypriv1EC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref LatestAmiId
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      SubnetId: !ImportValue Network-template-Priv1SubnetID
+      SecurityGroupIds: 
+        - !ImportValue Pub-server-sg-privateSecurityGroupID
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash 
+          yum update -y 
+          yum install -y httpd 
+          systemctl start httpd 
+          systemctl enable httpd
+          echo "WELCOME TO FRANCOISE WEBSERVER. THIS APPLICATION WAS LUNCHED USING CLOUDFORMATION." >/var/www/html/index.html
+      
+  # Mypriv2EC2Instance: 
+  #   Type: AWS::EC2::Instance
+  #   Properties: 
+  #     ImageId: !Ref LatestAmiId
+  #     InstanceType: t2.micro
+  #     KeyName: !Ref KeyName
+  #     SubnetId: !ImportValue Network-template-Priv2SubnetID
+  #     SecurityGroupIds: 
+  #       - !ImportValue Pub-server-sg-privateSecurityGroupID
+
+Outputs:
+  InstanceId:
+    Description: Instance Id of the newly created Ec2 Instance
+    Value: !GetAtt Mypub1EC2Instance.PublicIp

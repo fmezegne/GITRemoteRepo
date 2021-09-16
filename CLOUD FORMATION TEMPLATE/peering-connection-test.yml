@@ -1,0 +1,347 @@
+Parameters:
+  PrivateVPCIDCIDRRange:
+    Description: The IP address range for your new Private VPC.
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 172.31.0.0/16
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+
+# project3 network template
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      CidrBlock: 192.168.0.0/16
+  PublicSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: us-east-1a
+      VpcId: !Ref VPC
+      CidrBlock: 192.168.32.0/19
+  PublicSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      AvailabilityZone: us-east-1b
+      VpcId: !Ref VPC
+      CidrBlock: 192.168.64.0/19  
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+  VPCGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: 
+         !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable   
+  PublicSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId:    
+         !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+  MypublicNetworkAcl:
+      Type: AWS::EC2::NetworkAcl
+      Properties:
+         VpcId:
+           Ref: VPC   
+  MypubSubnet1NetworkAclAssociation:
+     Type: AWS::EC2::SubnetNetworkAclAssociation
+     Properties:
+       SubnetId:
+         Ref: PublicSubnet1
+       NetworkAclId:
+         Ref: MypublicNetworkAcl         
+  MypubSubnet1NetworkAclAssociation:
+     Type: AWS::EC2::SubnetNetworkAclAssociation
+     Properties:
+       SubnetId:
+         Ref: PublicSubnet2
+       NetworkAclId:
+         Ref: MypublicNetworkAcl
+  WebServerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable HTTP ingress
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 192.168.224.0/19
+      AvailabilityZone: us-east-1c
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-Private-1
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 192.168.160.0/19
+      AvailabilityZone: us-east-1d
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-Private-1   
+  PrivateSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId:
+        !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable  
+  PrivateRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Network
+          Value: Private
+  PrivateRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+  NatPublicIP:
+    Type: "AWS::EC2::EIP"
+    DependsOn: VPC
+    Properties:
+      Domain: vpc
+  NatGateway: # create natgateway
+    Type: "AWS::EC2::NatGateway"
+    DependsOn: NatPublicIP
+    Properties: 
+      AllocationId: !GetAtt NatPublicIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+    
+  PrivateSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId:
+        !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+  MyprivNetworkAcl:
+      Type: AWS::EC2::NetworkAcl
+      Properties:
+         VpcId:
+           !Ref VPC    
+  Mypriv1SubnetNetworkAclAssociation:
+     Type: AWS::EC2::SubnetNetworkAclAssociation
+     Properties:
+       SubnetId:
+         Ref: PrivateSubnet1
+       NetworkAclId:
+         Ref: MyprivNetworkAcl         
+  Mypriv2SubnetNetworkAclAssociation:
+     Type: AWS::EC2::SubnetNetworkAclAssociation
+     Properties:
+       SubnetId:
+         Ref: PrivateSubnet2
+       NetworkAclId:
+         Ref: MyprivNetworkAcl    
+
+# public load balancer
+  ELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'SSH and Port 80'
+      VpcId:
+        !Ref VPC
+      SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+# Linux Instance with Apache running on Port 80
+  PublicLoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the public facing load balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+  # Allow access to ALB from anywhere on the internet
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: -1
+  PublicLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets:
+        # The load balancer is placed into the public subnets, so that traffic
+        # from the internet can reach the load balancer directly via the internet gateway
+      - !Ref PublicSubnet1
+      - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref 'PublicLoadBalancerSG'
+# Public target Group
+  TargetGroupPublic:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Name: !Join ['-', [!Ref 'AWS::StackName', 'drop-1']]
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+  PublicLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - PublicLoadBalancer
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref 'TargetGroupPublic'
+          Type: 'forward'
+      LoadBalancerArn: !Ref 'PublicLoadBalancer'
+      Port: 80
+      Protocol: HTTP          
+# Internal Load Balancer
+  PrivateLoadBalancerSG:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Access to the internal load balancer
+        VpcId: !Ref VPC
+  PrivateLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets:
+        # This load balancer is put into the private subnet, so that there is no
+        # route for the public to even be able to access the private load balancer.
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref PrivateLoadBalancerSG
+  # This dummy target group is used to setup the ALB to just drop traffic
+  # initially, before any real service target groups have been added.
+  TargetGroupPrivate:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Name: !Join ['-', [!Ref 'AWS::StackName', 'drop-2']]
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+  PrivateLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - PrivateLoadBalancer
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroupPrivate
+          Type: 'forward'
+      LoadBalancerArn: !Ref PrivateLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+
+#VPC PEERING
+  # PeeringRoute2:
+  #   Type: 'AWS::EC2::Route'
+  #   Properties:
+  #     DestinationCidrBlock: !Ref PrivateVPCIDCIDRRange
+  #     RouteTableId: !Ref PublicRouteTable
+  #     VpcPeeringConnectionId: !Ref VPCPeeringConnection
+  # PeeringRoute1:
+  #   Type: 'AWS::EC2::Route'
+  #   Properties:
+  #     DestinationCidrBlock: 172.31.0.0/16 # 0.0.0.0/0
+  #     RouteTableId: !Ref PublicRouteTable
+  #     VpcPeeringConnectionId: !Ref VPCPeeringConnection    
+  # VPCPeeringConnection:
+  #   Type: 'AWS::EC2::VPCPeeringConnection'
+  #   Properties:
+  #     VpcId: !Ref VPC
+  #     PeerVpcId: vpc-0c967871 
+  #     PeerRoleArn: 'arn:aws:iam::512121751697:role/PeerRole'
+
+
+
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VPCID"
+  PrivateSubnet1:
+    Description: The subnet ID to use for public web servers
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}-Priv1SubnetID"
+  PrivateSubnet2:
+    Description: The subnet ID to use for public web servers
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}-Priv2SubnetID"    
+  WebServerSecurityGroup:
+    Description: The security group ID to use for public web servers
+    Value: !GetAtt 
+      - WebServerSecurityGroup
+      - GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}-SecurityGroupID"
+  PublicSubnet1:
+    Description: The subnet ID to use for public web servers
+    Value:
+      !Ref PublicSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}-Pub1SubnetID"
+  PublicSubnet2:
+    Description: The subnet ID to use for public web servers
+    Value:
+      !Ref PublicSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}-Pub2SubnetID"
+  ExternalLoadBalancer:    
+    Description: This LoadBalancer is for the public subnet
+    Value:
+      !Ref PublicLoadBalancer
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicLoadBalancerID"
+  InternalLoadBalancer:    
+    Description: This LoadBalancer is for the private subnet
+    Value:
+      !Ref PrivateLoadBalancer
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateLoadBalancerID"
